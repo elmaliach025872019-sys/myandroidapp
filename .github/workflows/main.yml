@@ -1,0 +1,59 @@
+name: Build Android APK Pure Java
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Install Android SDK Components
+      run: |
+        sudo apt-get update
+        mkdir -p android-sdk/cmdline-tools
+        cd android-sdk/cmdline-tools
+        wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+        unzip commandlinetools-linux-11076708_latest.zip
+        mv cmdline-tools latest
+        cd ../..
+        export ANDROID_HOME=$PWD/android-sdk
+        export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
+        yes | sdkmanager --licenses
+        sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+    - name: Create Structure and Compile
+      run: |
+        export ANDROID_HOME=$PWD/android-sdk
+        export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
+        
+        mkdir -p src/com/example/myandroidapp
+        mkdir -p obj
+        mkdir -p bin
+        
+        cp MainActivity.java src/com/example/myandroidapp/
+        cp AndroidManifest.xml .
+        
+        $ANDROID_HOME/build-tools/34.0.0/aapt package -f -m -J src -M AndroidManifest.xml -I $ANDROID_HOME/platforms/android-34/android.jar
+        javac -d obj -classpath $ANDROID_HOME/platforms/android-34/android.jar src/com/example/myandroidapp/*.java
+        $ANDROID_HOME/build-tools/34.0.0/d8 --output bin/classes.dex obj/com/example/myandroidapp/*.class --lib $ANDROID_HOME/platforms/android-34/android.jar
+        $ANDROID_HOME/build-tools/34.0.0/aapt package -f -M AndroidManifest.xml -I $ANDROID_HOME/platforms/android-34/android.jar -F bin/unaligned.apk bin
+        
+        keytool -genkey -v -keystore my.keystore -alias mykey -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=MyName"
+        $ANDROID_HOME/build-tools/34.0.0/apksigner sign --ks my.keystore --ks-pass pass:123456 --out bin/JackieCustomApp.apk bin/unaligned.apk
+
+    - name: Upload Final APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: JackieCustomAPK
+        path: bin/JackieCustomApp.apk
