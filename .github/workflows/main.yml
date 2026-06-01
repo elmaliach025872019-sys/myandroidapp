@@ -37,18 +37,27 @@ jobs:
         export ANDROID_HOME=$PWD/android-sdk
         export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
         
+        # יצירת המבנה בשרת
         mkdir -p src/com/example/myandroidapp
         mkdir -p obj
         mkdir -p bin
         
+        # העתקה נכונה של קוד ה-Java בלבד
         cp MainActivity.java src/com/example/myandroidapp/
-        cp AndroidManifest.xml .
         
+        # 1. יצירת קובץ ה-R
         $ANDROID_HOME/build-tools/34.0.0/aapt package -f -m -J src -M AndroidManifest.xml -I $ANDROID_HOME/platforms/android-34/android.jar
+        
+        # 2. קומפילציה
         javac -d obj -classpath $ANDROID_HOME/platforms/android-34/android.jar src/com/example/myandroidapp/*.java
+        
+        # 3. המרה ל-DEX
         $ANDROID_HOME/build-tools/34.0.0/d8 --output bin/classes.dex obj/com/example/myandroidapp/*.class --lib $ANDROID_HOME/platforms/android-34/android.jar
+        
+        # 4. יצירת APK לא חתום
         $ANDROID_HOME/build-tools/34.0.0/aapt package -f -M AndroidManifest.xml -I $ANDROID_HOME/platforms/android-34/android.jar -F bin/unaligned.apk bin
         
+        # 5. יצירת מפתח וחתימה על האפליקציה
         keytool -genkey -v -keystore my.keystore -alias mykey -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=MyName"
         $ANDROID_HOME/build-tools/34.0.0/apksigner sign --ks my.keystore --ks-pass pass:123456 --out bin/JackieCustomApp.apk bin/unaligned.apk
 
